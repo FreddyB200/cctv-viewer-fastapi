@@ -18,6 +18,7 @@ streams:
 
 api:
   listen: ":1984"
+  origin: "*"  # Allow all origins (for development)
 
 webrtc:
   listen: ":8555"
