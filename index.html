@@ -81,7 +81,15 @@
             const hlsUrl = `/hls/cam${i}/stream.m3u8`;
 
             if (Hls.isSupported()) {
-                const hls = new Hls();
+                const hls = new Hls({
+                    maxBufferLength: 1,           // Buffer máximo de 1 segundo
+                    maxMaxBufferLength: 2,        // Buffer máximo absoluto de 2 segundos
+                    liveSyncDuration: 0.5,        // Sincronizar cerca del live edge
+                    liveMaxLatencyDuration: 2,    // Latencia máxima permitida
+                    liveDurationInfinity: true,   // Stream en vivo infinito
+                    highBufferWatchdogPeriod: 1,  // Reducir watchdog period
+                    lowBufferWatchdogPeriod: 0.25 // Buffer bajo muy agresivo
+                });
                 hls.loadSource(hlsUrl);
                 hls.attachMedia(video);
                 

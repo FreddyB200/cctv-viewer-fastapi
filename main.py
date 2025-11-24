@@ -48,19 +48,23 @@ def startup_event():
 
         command = [
             'ffmpeg',
+            '-fflags', 'nobuffer+flush_packets',  # Sin buffer, flush inmediato
+            '-flags', 'low_delay',                # Modo de baja latencia
+            '-probesize', '32',                   # Reduce análisis inicial
+            '-analyzeduration', '0',              # No analizar stream
             '-rtsp_transport', 'tcp',
             '-i', rtsp_url,
             '-c:v', 'copy',
             '-c:a', 'aac',
             '-f', 'hls',
-            '-hls_time', '1',                    # Segmentos de 1 segundo (reduce latencia)
-            '-hls_list_size', '2',               # Solo 2 segmentos en playlist (reduce buffer)
-            '-hls_flags', 'delete_segments+omit_endlist',  # Optimizado para baja latencia
+            '-hls_time', '0.5',                   # Segmentos de 0.5 segundos (ultra baja latencia)
+            '-hls_list_size', '1',                # Solo 1 segmento (mínimo buffer)
+            '-hls_flags', 'delete_segments+omit_endlist+program_date_time',
             '-hls_segment_type', 'mpegts',
-            '-g', '30',                          # GOP cada 30 frames (1 segundo @ 30fps)
-            '-sc_threshold', '0',                # Desactiva detección de cambio de escena
+            '-hls_allow_cache', '0',              # No cache
             '-start_number', '1',
-            '-hls_allow_cache', '0',             # No cache para menor latencia
+            '-avoid_negative_ts', 'make_zero',
+            '-max_delay', '0',                    # Sin delay máximo
             hls_playlist_path
         ]
         
