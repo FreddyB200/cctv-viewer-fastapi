@@ -1,6 +1,11 @@
 # Use an official, lightweight Python image as a base
 FROM python:3.11-slim
 
+# Install FFmpeg and clean up in one layer to reduce image size
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
 # Set the working directory inside the container
 WORKDIR /app
 
@@ -12,6 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of your application's code into the container
 COPY . .
+
+# Create .env file from environment variables at runtime
+# This will be populated by docker-compose or docker run -e flags
 
 # Tell Docker that the container will listen on port 8000
 EXPOSE 8000

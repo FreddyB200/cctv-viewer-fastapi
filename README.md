@@ -4,8 +4,14 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.116-green.svg)
 ![Docker](https://img.shields.io/badge/docker-24.0-blue.svg)
 ![FFmpeg](https://img.shields.io/badge/ffmpeg-5.1-orange.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-A robust, self-healing web application designed to display a real-time grid of up to 16 RTSP camera streams. This project was engineered as a custom solution to overcome the technical limitations of restrictive client environments (like ChromeOS) where standard NVR software and control scripts fail.
+A robust, low-latency web application designed to display a real-time grid of up to 16 RTSP camera streams. This project was engineered as a custom solution to overcome the technical limitations of restrictive client environments (like ChromeOS) where standard NVR software and control scripts fail.
+
+**New in this version:**
+- **Low-Latency HLS**: Optimized to ~2-4 seconds latency (down from 6-10 seconds)
+- **Easy Deployment**: One-command deployment to DockerHub
+- **ChromeOS Ready**: Complete installation guide for ChromeOS/Debian environments
 
 ### High-Level Flow
 
@@ -30,7 +36,7 @@ graph LR
 -   **Live 4x4 Grid**: Displays 16 simultaneous RTSP streams in a clean, browser-based grid.
 -   **Self-Healing Backend**: A supervisor thread continuously monitors all video streams. If a stream stalls or an FFmpeg process crashes, it is automatically terminated and restarted to ensure maximum uptime.
 -   **Resilient Frontend**: The JavaScript player intelligently detects stream interruptions and automatically attempts to reconnect, providing a seamless viewing experience without requiring a manual page refresh.
--   **Low Latency**: Uses FFmpeg to transcode RTSP to HLS with optimized parameters, balancing stream stability with a low delay (~5-6 seconds).
+-   **Low Latency**: Optimized HLS configuration with 1-second segments and reduced buffering for ~2-4 seconds latency.
 -   **Secure**: All sensitive data (camera credentials, IP addresses) is managed via a `.env` file and is never exposed in the codebase or repository.
 -   **Dockerized Deployment**: The entire application is containerized with Docker and orchestrated by Docker Compose for a simple, reproducible, one-command deployment on any server.
 
@@ -77,29 +83,50 @@ cp .env.example .env
 Then, edit the .env file with your specific camera details. The .env file is included in .gitignore and will not be committed to the repository.
 ```
 
-## 🚀 Setup and Installation (Docker)
+## 🚀 Quick Start
 
-This application is designed to be run with Docker.
+### For Developers (Build and Push to DockerHub)
 
-### Prerequisites
--   Git
--   Docker and Docker Compose
-
-### Steps
-1.  **Clone the repository:**
+1.  **Clone and configure:**
     ```bash
-      git clone [https://github.com/YOUR_USER/YOUR_REPO.git](https://github.com/YOUR_USER/YOUR_REPO.git)
-    cd YOUR_REPO
+    git clone [your-repo-url]
+    cd cctv-viewer-fastapi
+    cp .env.example .env
+    # Edit .env with your camera credentials
     ```
 
-2.  **Create your environment file:**
-    Create a file named `.env` and fill it with your camera credentials and IP, following the format in `.env.example`.
-
-3.  **Build and run the container:**
-    Use Docker Compose to build the image and run the container in the background.
+2.  **Deploy to DockerHub:**
     ```bash
-    docker compose up --build -d
+    ./deploy.sh your-dockerhub-username
     ```
+
+### For End Users (ChromeOS/Debian)
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for complete installation instructions.
+
+**Quick version:**
+```bash
+# 1. Install Docker
+bash install-docker-chromeos.sh
+
+# 2. Close and reopen terminal
+
+# 3. Run the application
+bash quick-start.sh
+```
+
+### For Local Development
+
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Create .env file with your camera configuration
+cp .env.example .env
+
+# Run the application
+uvicorn main:app --reload
+```
 
 ---
 
@@ -115,8 +142,29 @@ The 16 camera streams will load into the grid.
 
 ---
 
-## 🔮 Future Improvements (v2.0)
+## 📋 Available Scripts
 
--   **Migration to WebRTC**: To achieve true real-time latency (<1 second), the next major version will replace the HLS transcoding pipeline with a **WebRTC gateway** using a tool like `go2rtc`.
--   **User Authentication**: Implement a login system using FastAPI's security features to restrict access.
--   **Dynamic Grid**: Allow users to select which cameras to display and in what layout.
+-   `deploy.sh [dockerhub-user]` - Build and push image to DockerHub
+-   `install-docker-chromeos.sh` - Install Docker on ChromeOS/Debian
+-   `quick-start.sh` - Quick deployment script for end users
+
+## 🐛 Troubleshooting
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed troubleshooting steps.
+
+Common issues:
+-   **Streams not loading**: Check camera credentials in `.env`
+-   **High latency**: Verify network bandwidth and camera settings
+-   **Docker issues**: Ensure Docker service is running
+
+## 📚 Documentation
+
+-   [DEPLOYMENT.md](DEPLOYMENT.md) - Complete deployment guide for ChromeOS/Debian
+-   [.env.example](.env.example) - Environment configuration template
+
+## 🔮 Future Improvements
+
+-   **WebRTC Support**: Optional WebRTC mode for sub-second latency
+-   **User Authentication**: Login system with FastAPI security
+-   **Dynamic Grid**: Configurable camera layouts
+-   **Recording**: DVR functionality with playback

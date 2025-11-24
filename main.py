@@ -44,9 +44,21 @@ def startup_event():
         hls_playlist_path = f"{hls_base_dir}/cam{i}/stream.m3u8"
 
         command = [
-            'ffmpeg', '-rtsp_transport', 'tcp', '-i', rtsp_url, '-c:v', 'copy', 
-            '-hls_time', '2', '-hls_list_size', '3', '-hls_flags', 'delete_segments',
-            '-start_number', '1', hls_playlist_path
+            'ffmpeg',
+            '-rtsp_transport', 'tcp',
+            '-i', rtsp_url,
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-f', 'hls',
+            '-hls_time', '1',                    # Segmentos de 1 segundo (reduce latencia)
+            '-hls_list_size', '2',               # Solo 2 segmentos en playlist (reduce buffer)
+            '-hls_flags', 'delete_segments+omit_endlist',  # Optimizado para baja latencia
+            '-hls_segment_type', 'mpegts',
+            '-g', '30',                          # GOP cada 30 frames (1 segundo @ 30fps)
+            '-sc_threshold', '0',                # Desactiva detección de cambio de escena
+            '-start_number', '1',
+            '-hls_allow_cache', '0',             # No cache para menor latencia
+            hls_playlist_path
         ]
         
         process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
