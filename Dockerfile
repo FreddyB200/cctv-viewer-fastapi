@@ -1,10 +1,18 @@
 # Use an official, lightweight Python image as a base
 FROM python:3.11-slim
 
-# Install FFmpeg and clean up in one layer to reduce image size
+# Install dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg && \
+    apt-get install -y --no-install-recommends \
+    ffmpeg \
+    wget \
+    ca-certificates \
+    supervisor && \
     rm -rf /var/lib/apt/lists/*
+
+# Install go2rtc
+RUN wget -O /usr/local/bin/go2rtc https://github.com/AlexxIT/go2rtc/releases/latest/download/go2rtc_linux_amd64 && \
+    chmod +x /usr/local/bin/go2rtc
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -18,11 +26,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of your application's code into the container
 COPY . .
 
-# Create .env file from environment variables at runtime
-# This will be populated by docker-compose or docker run -e flags
+# Tell Docker that the container will listen on ports
+EXPOSE 8000 1984 8554
 
-# Tell Docker that the container will listen on port 8000
-EXPOSE 8000
+# Copy supervisor config
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # The command to run when the container starts
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
