@@ -68,23 +68,48 @@
 
                 pc.oniceconnectionstatechange = () => {
                     if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                        console.error(`${streamName}: ICE connection ${pc.iceConnectionState}`);
                         errorOverlay.classList.remove('hidden');
                         loadingOverlay.classList.add('hidden');
                     }
                 };
 
+                // Create offer and wait for ICE gathering to complete
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
 
+                // Wait for ICE gathering to complete
+                await new Promise((resolve) => {
+                    if (pc.iceGatheringState === 'complete') {
+                        resolve();
+                    } else {
+                        const checkState = () => {
+                            if (pc.iceGatheringState === 'complete') {
+                                pc.removeEventListener('icegatheringstatechange', checkState);
+                                resolve();
+                            }
+                        };
+                        pc.addEventListener('icegatheringstatechange', checkState);
+                    }
+                });
+
+                // Now send the complete SDP with ICE candidates
                 const response = await fetch(`http://${window.location.hostname}:1984/api/webrtc?src=${streamName}`, {
                     method: 'POST',
-                    body: offer.sdp
+                    headers: {'Content-Type': 'application/sdp'},
+                    body: pc.localDescription.sdp
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
 
                 const answer = await response.text();
                 await pc.setRemoteDescription({type: 'answer', sdp: answer});
+
+                console.log(`${streamName}: WebRTC connected`);
             } catch (error) {
-                console.error('WebRTC error:', error);
+                console.error(`${streamName} WebRTC error:`, error);
                 errorOverlay.classList.remove('hidden');
                 loadingOverlay.classList.add('hidden');
             }
