@@ -23,6 +23,9 @@ def check_ffmpeg():
 app = FastAPI()
 ffmpeg_processes = []
 
+# Create hls directory if it doesn't exist (needed for StaticFiles mount)
+os.makedirs("hls", exist_ok=True)
+
 @app.on_event("startup")
 def startup_event():
     """This code runs when the server starts."""
