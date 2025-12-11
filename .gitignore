@@ -15,3 +15,14 @@ hls/
 # OS / Editor specific
 .DS_Store
 .vscode/
+
+# MCP and temporary files
+.mcp.json
+.prompt-file.txt
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+node_modules/
+coverage/
