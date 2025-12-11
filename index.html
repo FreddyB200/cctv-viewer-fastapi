@@ -50,36 +50,18 @@
     <script>
         const grid = document.getElementById('grid-container');
         const totalCameras = 16;
-        const USE_WEBRTC = true; // Cambiar a false para usar HLS
+        const USE_WEBRTC = true; // Change to false to use HLS
+        const DEBUG = false; // Set to true for development logging
 
-        async function startWebRTC(video, streamName, loadingOverlay, errorOverlay) {
-            try {
-                const pc = new RTCPeerConnection({
-                    iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
-                });
+        // Debug logging helpers
+        const log = DEBUG ? console.log.bind(console) : () => {};
+        const warn = DEBUG ? console.warn.bind(console) : () => {};
+        const error = console.error.bind(console); // Always log errors
 
-                pc.addTransceiver('video', {direction: 'recvonly'});
-                pc.addTransceiver('audio', {direction: 'recvonly'});
-
-                pc.ontrack = (event) => {
-                    video.srcObject = event.streams[0];
-                    loadingOverlay.classList.add('hidden');
-                };
-
-                pc.oniceconnectionstatechange = () => {
-                    if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-                        console.error(`${streamName}: ICE connection ${pc.iceConnectionState}`);
-                        errorOverlay.classList.remove('hidden');
-                        loadingOverlay.classList.add('hidden');
-                    }
-                };
-
-                // Create offer and wait for ICE gathering to complete
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-
-                // Wait for ICE gathering to complete
-                await new Promise((resolve) => {
+        // Utility: Wait for ICE gathering with timeout
+        function waitForIceGatheringWithTimeout(pc, timeout = 10000) {
+            return Promise.race([
+                new Promise((resolve) => {
                     if (pc.iceGatheringState === 'complete') {
                         resolve();
                     } else {
@@ -91,7 +73,108 @@
                         };
                         pc.addEventListener('icegatheringstatechange', checkState);
                     }
-                });
+                }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('ICE gathering timeout')), timeout)
+                )
+            ]);
+        }
+
+        // Utility: Cleanup WebRTC resources
+        function cleanupWebRTC(pc, video) {
+            if (pc) {
+                pc.close();
+            }
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+        }
+
+        // Fetch ICE server configuration from backend
+        let cachedIceServers = null;
+        async function fetchIceServers() {
+            if (cachedIceServers) {
+                return cachedIceServers;
+            }
+
+            try {
+                const response = await fetch(`http://${window.location.hostname}:8000/api/ice-servers`);
+                if (!response.ok) {
+                    warn('Failed to fetch ICE servers, using default STUN');
+                    return {iceServers: [{urls: ['stun:stun.l.google.com:19302']}]};
+                }
+                const config = await response.json();
+                cachedIceServers = config;
+                log('ICE servers loaded:', config);
+                return config;
+            } catch (err) {
+                warn('Error fetching ICE servers:', err);
+                return {iceServers: [{urls: ['stun:stun.l.google.com:19302']}]};
+            }
+        }
+
+        async function startWebRTC(video, streamName, loadingOverlay, errorOverlay) {
+            let pc = null;
+
+            try {
+                // Fetch ICE server configuration dynamically
+                const iceConfig = await fetchIceServers();
+                pc = new RTCPeerConnection(iceConfig);
+
+                pc.addTransceiver('video', {direction: 'recvonly'});
+                pc.addTransceiver('audio', {direction: 'recvonly'});
+
+                pc.ontrack = async (event) => {
+                    video.srcObject = event.streams[0];
+                    try {
+                        await video.play();
+                        loadingOverlay.classList.add('hidden');
+                        log(`${streamName}: Video playback started`);
+                    } catch (playError) {
+                        error(`${streamName}: Autoplay blocked:`, playError);
+                        // Show user interaction prompt
+                        errorOverlay.textContent = 'Click to Start Stream';
+                        errorOverlay.classList.remove('hidden');
+                        errorOverlay.style.cursor = 'pointer';
+                        loadingOverlay.classList.add('hidden');
+
+                        errorOverlay.onclick = async () => {
+                            try {
+                                await video.play();
+                                errorOverlay.classList.add('hidden');
+                                errorOverlay.onclick = null;
+                                errorOverlay.style.cursor = 'default';
+                                log(`${streamName}: Video started after user interaction`);
+                            } catch (e) {
+                                error(`${streamName}: Playback failed:`, e);
+                                errorOverlay.textContent = 'Playback Failed';
+                                errorOverlay.style.cursor = 'default';
+                            }
+                        };
+                    }
+                };
+
+                pc.oniceconnectionstatechange = () => {
+                    const state = pc.iceConnectionState;
+                    log(`${streamName}: ICE connection state: ${state}`);
+
+                    if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+                        error(`${streamName}: ICE connection ${state}`);
+                        errorOverlay.textContent = `Connection ${state}`;
+                        errorOverlay.classList.remove('hidden');
+                        loadingOverlay.classList.add('hidden');
+                        cleanupWebRTC(pc, video);
+                    }
+                };
+
+                // Create offer and wait for ICE gathering to complete
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                // Wait for ICE gathering to complete with timeout
+                await waitForIceGatheringWithTimeout(pc);
+                log(`${streamName}: ICE gathering complete`);
 
                 // Now send the complete SDP with ICE candidates
                 const response = await fetch(`http://${window.location.hostname}:1984/api/webrtc?src=${streamName}`, {
@@ -107,11 +190,14 @@
                 const answer = await response.text();
                 await pc.setRemoteDescription({type: 'answer', sdp: answer});
 
-                console.log(`${streamName}: WebRTC connected`);
-            } catch (error) {
-                console.error(`${streamName} WebRTC error:`, error);
+                log(`${streamName}: WebRTC connected`);
+            } catch (err) {
+                error(`${streamName} WebRTC error:`, err);
+                errorOverlay.textContent = 'Stream Offline\n(Check Logs)';
                 errorOverlay.classList.remove('hidden');
                 loadingOverlay.classList.add('hidden');
+                cleanupWebRTC(pc, video);
+                throw err; // Re-throw for retry logic
             }
         }
 
@@ -131,20 +217,85 @@
                 hls.loadSource(hlsUrl);
                 hls.attachMedia(video);
 
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    loadingOverlay.classList.add('hidden');
+                hls.on(Hls.Events.MANIFEST_PARSED, async function() {
+                    try {
+                        await video.play();
+                        loadingOverlay.classList.add('hidden');
+                        log(`${streamName}: HLS playback started`);
+                    } catch (playError) {
+                        error(`${streamName}: HLS autoplay blocked:`, playError);
+                        errorOverlay.textContent = 'Click to Start';
+                        errorOverlay.classList.remove('hidden');
+                        errorOverlay.style.cursor = 'pointer';
+                        loadingOverlay.classList.add('hidden');
+
+                        errorOverlay.onclick = async () => {
+                            try {
+                                await video.play();
+                                errorOverlay.classList.add('hidden');
+                                errorOverlay.onclick = null;
+                                errorOverlay.style.cursor = 'default';
+                            } catch (e) {
+                                error(`${streamName}: HLS playback failed:`, e);
+                                errorOverlay.textContent = 'Playback Failed';
+                            }
+                        };
+                    }
                 });
                 hls.on(Hls.Events.ERROR, function(event, data) {
                     if (data.fatal) {
+                        error(`${streamName}: HLS fatal error:`, data);
                         loadingOverlay.classList.add('hidden');
+                        errorOverlay.textContent = 'Stream Offline\n(Check Logs)';
                         errorOverlay.classList.remove('hidden');
                     }
                 });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 video.src = hlsUrl;
-                video.addEventListener('loadedmetadata', function() {
-                    loadingOverlay.classList.add('hidden');
+                video.addEventListener('loadedmetadata', async function() {
+                    try {
+                        await video.play();
+                        loadingOverlay.classList.add('hidden');
+                    } catch (playError) {
+                        error(`${streamName}: Native HLS autoplay blocked:`, playError);
+                        errorOverlay.textContent = 'Click to Start';
+                        errorOverlay.classList.remove('hidden');
+                        loadingOverlay.classList.add('hidden');
+                    }
                 });
+            }
+        }
+
+        // Retry wrapper for WebRTC with exponential backoff
+        async function startWebRTCWithRetry(video, streamName, loadingOverlay, errorOverlay, maxRetries = 3) {
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    await startWebRTC(video, streamName, loadingOverlay, errorOverlay);
+                    return; // Success - exit retry loop
+                } catch (err) {
+                    error(`${streamName}: Attempt ${attempt}/${maxRetries} failed`);
+
+                    if (attempt < maxRetries) {
+                        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+                        log(`${streamName}: Retrying in ${delay}ms...`);
+                        errorOverlay.textContent = `Retrying (${attempt}/${maxRetries})...`;
+                        errorOverlay.classList.remove('hidden');
+                        loadingOverlay.classList.add('hidden');
+
+                        await new Promise(resolve => setTimeout(resolve, delay));
+
+                        // Reset UI for next attempt
+                        errorOverlay.classList.add('hidden');
+                        loadingOverlay.classList.remove('hidden');
+                        loadingOverlay.textContent = 'Reconnecting...';
+                    } else {
+                        // Max retries reached
+                        error(`${streamName}: Max retries (${maxRetries}) reached`);
+                        errorOverlay.textContent = 'Connection Failed\n(Max retries reached)';
+                        errorOverlay.classList.remove('hidden');
+                        loadingOverlay.classList.add('hidden');
+                    }
+                }
             }
         }
 
@@ -179,7 +330,7 @@
             const streamName = `cam${i}`;
 
             if (USE_WEBRTC) {
-                startWebRTC(video, streamName, loadingOverlay, errorOverlay);
+                startWebRTCWithRetry(video, streamName, loadingOverlay, errorOverlay);
             } else {
                 startHLS(video, streamName, loadingOverlay, errorOverlay);
             }

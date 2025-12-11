@@ -10,30 +10,31 @@ from fastapi.staticfiles import StaticFiles
 from settings import settings
 
 # --- Setup professional logging ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# --- A function to check if FFmpeg is installed ---
+
 def check_ffmpeg():
     if not shutil.which("ffmpeg"):
         logging.error("CRITICAL: ffmpeg command not found. Please ensure FFmpeg is installed in the Docker container.")
         raise RuntimeError("FFmpeg not found")
     logging.info("FFmpeg installation confirmed.")
 
-# --- Main Application Setup ---
+
 app = FastAPI()
 ffmpeg_processes = []
 
 # Create hls directory if it doesn't exist (needed for StaticFiles mount)
 os.makedirs("hls", exist_ok=True)
 
+
 @app.on_event("startup")
 def startup_event():
     """This code runs when the server starts."""
     check_ffmpeg()
-    
+
     hls_base_dir = "hls"
     if os.path.exists(hls_base_dir):
-        shutil.rmtree(hls_base_dir) # Clean up old streams on startup
+        shutil.rmtree(hls_base_dir)  # Clean up old streams on startup
     logging.info(f"Creating HLS directories for {settings.TOTAL_CAMERAS} cameras...")
     for i in range(1, settings.TOTAL_CAMERAS + 1):
         os.makedirs(f"{hls_base_dir}/cam{i}", exist_ok=True)
@@ -47,45 +48,81 @@ def startup_event():
         hls_playlist_path = f"{hls_base_dir}/cam{i}/stream.m3u8"
 
         command = [
-            'ffmpeg',
-            '-fflags', 'nobuffer',                # Sin buffer
-            '-flags', 'low_delay',                # Modo de baja latencia
-            '-rtsp_transport', 'tcp',
-            '-i', rtsp_url,
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            '-f', 'hls',
-            '-hls_time', '1',                     # Segmentos de 1 segundo (balance latencia/estabilidad)
-            '-hls_list_size', '3',                # 3 segmentos (mínimo para estabilidad)
-            '-hls_flags', 'delete_segments+omit_endlist',
-            '-hls_segment_type', 'mpegts',
-            '-hls_allow_cache', '0',              # No cache
-            '-g', '30',                           # GOP de 30 frames (1s @ 30fps)
-            '-start_number', '1',
-            hls_playlist_path
+            "ffmpeg",
+            "-fflags",
+            "nobuffer",  # No buffering
+            "-flags",
+            "low_delay",  # Low latency mode
+            "-rtsp_transport",
+            "tcp",
+            "-i",
+            rtsp_url,
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-f",
+            "hls",
+            "-hls_time",
+            "1",  # 1-second segments (balance latency/stability)
+            "-hls_list_size",
+            "3",  # 3 segments (minimum for stability)
+            "-hls_flags",
+            "delete_segments+omit_endlist",
+            "-hls_segment_type",
+            "mpegts",
+            "-hls_allow_cache",
+            "0",  # No caching
+            "-g",
+            "30",  # GOP of 30 frames (1s @ 30fps)
+            "-start_number",
+            "1",
+            hls_playlist_path,
         ]
-        
+
         process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         ffmpeg_processes.append((i, process))
-    
+
     logging.info("Waiting 5 seconds to check initial stream status...")
     time.sleep(5)
     for cam_id, process in ffmpeg_processes:
-        if process.poll() is not None: # If the process has terminated
-            error_output = process.stderr.read().decode('utf-8')
-            logging.error(f"FATAL: FFmpeg process for Camera {cam_id} failed on startup.")
-            logging.error(f"-> Most likely cause: Incorrect IP, port, or credentials.")
-            logging.error(f"-> FFmpeg error output: {error_output.strip()}")
+        if process.poll() is not None:  # If the process has terminated
+            error_output = process.stderr.read().decode("utf-8")
+            logging.error("FATAL: FFmpeg process for Camera %d failed on startup.", cam_id)
+            logging.error("-> Most likely cause: Incorrect IP, port, or credentials.")
+            logging.error("-> FFmpeg error output: %s", error_output.strip())
         else:
-            logging.info(f"Stream for Camera {cam_id} started successfully.")
+            logging.info("Stream for Camera %d started successfully.", cam_id)
+
 
 app.mount("/hls", StaticFiles(directory="hls"), name="hls")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def get_frontend():
     with open("index.html") as f:
         return HTMLResponse(content=f.read(), status_code=200)
 
+
 @app.get("/health", response_class=JSONResponse)
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/api/ice-servers", response_class=JSONResponse)
+async def get_ice_servers():
+    """
+    Returns ICE server configuration for WebRTC connections.
+    This allows dynamic configuration of STUN/TURN servers from the backend.
+    """
+    ice_servers = [{"urls": ["stun:stun.l.google.com:19302"]}]
+
+    # Add TURN server if configured
+    if settings.TURN_URL:
+        turn_config = {"urls": [settings.TURN_URL]}
+        if settings.TURN_USERNAME and settings.TURN_PASSWORD:
+            turn_config["username"] = settings.TURN_USERNAME
+            turn_config["credential"] = settings.TURN_PASSWORD
+        ice_servers.append(turn_config)
+
+    return {"iceServers": ice_servers}

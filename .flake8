@@ -1,0 +1,14 @@
+[flake8]
+max-line-length = 120
+exclude =
+    .git,
+    __pycache__,
+    venv,
+    .venv,
+    tests,
+    node_modules
+# Ignore rules:
+# E203 - Whitespace before ':'
+# W503 - Line break before binary operator
+# E501 - Line too long (handled by max-line-length)
+ignore = E203,W503,E501

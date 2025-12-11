@@ -1,0 +1,43 @@
+[tool.black]
+line-length = 120
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | node_modules
+)/
+'''
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+select = ["E", "F", "W", "I"]
+ignore = ["E203", "W503"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+addopts = [
+    "--verbose",
+    "--cov=.",
+    "--cov-report=html",
+    "--cov-report=term-missing",
+    "-p", "no:warnings"
+]
+
+[tool.coverage.run]
+omit = ["tests/*", "*/tests/*", "*/__pycache__/*"]

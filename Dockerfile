@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Tell Docker that the container will listen on ports
-EXPOSE 8000 1984 8554
+EXPOSE 8000 1984 8555 8554
 
 # Copy supervisor config
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
