@@ -9,7 +9,9 @@
 A robust, low-latency web application designed to display a real-time grid of up to 16 RTSP camera streams. This project was engineered as a custom solution to overcome the technical limitations of restrictive client environments (like ChromeOS) where standard NVR software and control scripts fail.
 
 **New in this version:**
-- **Low-Latency HLS**: Optimized to ~2-4 seconds latency (down from 6-10 seconds)
+- **Ultra-Low Latency WebRTC**: Sub-second latency via go2rtc with automatic HLS fallback
+- **Dual Protocol Support**: WebRTC for low latency (~100-500ms), HLS for compatibility (~2-4s)
+- **ICE NAT Traversal**: STUN/TURN server support for firewall penetration
 - **Easy Deployment**: One-command deployment to DockerHub
 - **ChromeOS Ready**: Complete installation guide for ChromeOS/Debian environments
 
@@ -34,9 +36,11 @@ graph LR
 ## ✨ Key Features
 
 -   **Live 4x4 Grid**: Displays 16 simultaneous RTSP streams in a clean, browser-based grid.
+-   **Ultra-Low Latency WebRTC**: Sub-second latency (~100-500ms) via go2rtc with automatic retry logic and ICE NAT traversal.
+-   **Dual Protocol Support**: Toggle between WebRTC (ultra-low latency) and HLS (maximum compatibility) with a single flag.
 -   **Self-Healing Backend**: A supervisor thread continuously monitors all video streams. If a stream stalls or an FFmpeg process crashes, it is automatically terminated and restarted to ensure maximum uptime.
--   **Resilient Frontend**: The JavaScript player intelligently detects stream interruptions and automatically attempts to reconnect, providing a seamless viewing experience without requiring a manual page refresh.
--   **Low Latency**: Optimized HLS configuration with 1-second segments and reduced buffering for ~2-4 seconds latency.
+-   **Resilient Frontend**: Intelligent connection management with exponential backoff retry logic, automatic reconnection, and graceful error handling.
+-   **Optimized HLS Fallback**: Low-latency HLS configuration with 1-second segments for ~2-4 seconds latency when WebRTC isn't available.
 -   **Secure**: All sensitive data (camera credentials, IP addresses) is managed via a `.env` file and is never exposed in the codebase or repository.
 -   **Dockerized Deployment**: The entire application is containerized with Docker and orchestrated by Docker Compose for a simple, reproducible, one-command deployment on any server.
 
@@ -69,9 +73,10 @@ The frontend is a single, static `index.html` page with no heavy frameworks.
 ## 🛠️ Tech Stack
 
 -   **Backend**: Python 3.11, FastAPI, Uvicorn
--   **Stream Processing**: FFmpeg
--   **Frontend**: HTML5, CSS3, JavaScript (with hls.js)
--   **Deployment**: Docker & Docker Compose
+-   **Stream Processing**: FFmpeg (RTSP to HLS), go2rtc (RTSP to WebRTC)
+-   **WebRTC Signaling**: go2rtc API server with ICE server support
+-   **Frontend**: HTML5, CSS3, JavaScript (with hls.js and native WebRTC)
+-   **Deployment**: Docker & Docker Compose, Supervisor (process management)
 
 ---
 
@@ -164,7 +169,8 @@ Common issues:
 
 ## 🔮 Future Improvements
 
--   **WebRTC Support**: Optional WebRTC mode for sub-second latency
 -   **User Authentication**: Login system with FastAPI security
--   **Dynamic Grid**: Configurable camera layouts
+-   **Dynamic Grid**: Configurable camera layouts (2x2, 3x3, 4x4, etc.)
 -   **Recording**: DVR functionality with playback
+-   **Mobile App**: Native iOS/Android applications
+-   **Advanced Analytics**: Motion detection and event triggers
