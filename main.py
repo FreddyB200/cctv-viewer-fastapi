@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from settings import settings
 
 # --- Setup professional logging ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 def check_ffmpeg():
@@ -48,22 +48,36 @@ def startup_event():
         hls_playlist_path = f"{hls_base_dir}/cam{i}/stream.m3u8"
 
         command = [
-            'ffmpeg',
-            '-fflags', 'nobuffer',                # No buffering
-            '-flags', 'low_delay',                # Low latency mode
-            '-rtsp_transport', 'tcp',
-            '-i', rtsp_url,
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            '-f', 'hls',
-            '-hls_time', '1',                     # 1-second segments (balance latency/stability)
-            '-hls_list_size', '3',                # 3 segments (minimum for stability)
-            '-hls_flags', 'delete_segments+omit_endlist',
-            '-hls_segment_type', 'mpegts',
-            '-hls_allow_cache', '0',              # No caching
-            '-g', '30',                           # GOP of 30 frames (1s @ 30fps)
-            '-start_number', '1',
-            hls_playlist_path
+            "ffmpeg",
+            "-fflags",
+            "nobuffer",  # No buffering
+            "-flags",
+            "low_delay",  # Low latency mode
+            "-rtsp_transport",
+            "tcp",
+            "-i",
+            rtsp_url,
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-f",
+            "hls",
+            "-hls_time",
+            "1",  # 1-second segments (balance latency/stability)
+            "-hls_list_size",
+            "3",  # 3 segments (minimum for stability)
+            "-hls_flags",
+            "delete_segments+omit_endlist",
+            "-hls_segment_type",
+            "mpegts",
+            "-hls_allow_cache",
+            "0",  # No caching
+            "-g",
+            "30",  # GOP of 30 frames (1s @ 30fps)
+            "-start_number",
+            "1",
+            hls_playlist_path,
         ]
 
         process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -73,7 +87,7 @@ def startup_event():
     time.sleep(5)
     for cam_id, process in ffmpeg_processes:
         if process.poll() is not None:  # If the process has terminated
-            error_output = process.stderr.read().decode('utf-8')
+            error_output = process.stderr.read().decode("utf-8")
             logging.error("FATAL: FFmpeg process for Camera %d failed on startup.", cam_id)
             logging.error("-> Most likely cause: Incorrect IP, port, or credentials.")
             logging.error("-> FFmpeg error output: %s", error_output.strip())
@@ -93,3 +107,22 @@ async def get_frontend():
 @app.get("/health", response_class=JSONResponse)
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/api/ice-servers", response_class=JSONResponse)
+async def get_ice_servers():
+    """
+    Returns ICE server configuration for WebRTC connections.
+    This allows dynamic configuration of STUN/TURN servers from the backend.
+    """
+    ice_servers = [{"urls": ["stun:stun.l.google.com:19302"]}]
+
+    # Add TURN server if configured
+    if settings.TURN_URL:
+        turn_config = {"urls": [settings.TURN_URL]}
+        if settings.TURN_USERNAME and settings.TURN_PASSWORD:
+            turn_config["username"] = settings.TURN_USERNAME
+            turn_config["credential"] = settings.TURN_PASSWORD
+        ice_servers.append(turn_config)
+
+    return {"iceServers": ice_servers}

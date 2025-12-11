@@ -18,15 +18,19 @@ streams:
 
 api:
   listen: ":1984"
-  origin: "*"  # Allow all origins (for development) - IMPORTANT: Restrict in production!
+  # SECURITY: Use environment variable for CORS origin. Default "*" for development only.
+  # In production, set ALLOWED_ORIGINS to your domain (e.g., "https://yourdomain.com")
+  origin: "${ALLOWED_ORIGINS:-*}"
 
 webrtc:
   listen: ":8555"
   ice_servers:
     - urls: [stun:stun.l.google.com:19302]
-    - urls: [turn:openrelay.metered.ca:80]
-      username: openrelay
-      credential: openrelay
+    # SECURITY: TURN server credentials from environment variables
+    # Default uses public openrelay for development. Use private TURN server in production.
+    - urls: ["${TURN_URL:-turn:openrelay.metered.ca:80}"]
+      username: "${TURN_USERNAME:-openrelay}"
+      credential: "${TURN_PASSWORD:-openrelay}"
 
 log:
   level: info

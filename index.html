@@ -91,13 +91,36 @@
             }
         }
 
+        // Fetch ICE server configuration from backend
+        let cachedIceServers = null;
+        async function fetchIceServers() {
+            if (cachedIceServers) {
+                return cachedIceServers;
+            }
+
+            try {
+                const response = await fetch(`http://${window.location.hostname}:8000/api/ice-servers`);
+                if (!response.ok) {
+                    warn('Failed to fetch ICE servers, using default STUN');
+                    return {iceServers: [{urls: ['stun:stun.l.google.com:19302']}]};
+                }
+                const config = await response.json();
+                cachedIceServers = config;
+                log('ICE servers loaded:', config);
+                return config;
+            } catch (err) {
+                warn('Error fetching ICE servers:', err);
+                return {iceServers: [{urls: ['stun:stun.l.google.com:19302']}]};
+            }
+        }
+
         async function startWebRTC(video, streamName, loadingOverlay, errorOverlay) {
             let pc = null;
 
             try {
-                pc = new RTCPeerConnection({
-                    iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
-                });
+                // Fetch ICE server configuration dynamically
+                const iceConfig = await fetchIceServers();
+                pc = new RTCPeerConnection(iceConfig);
 
                 pc.addTransceiver('video', {direction: 'recvonly'});
                 pc.addTransceiver('audio', {direction: 'recvonly'});

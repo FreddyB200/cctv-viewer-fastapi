@@ -162,9 +162,114 @@ Common issues:
 -   **High latency**: Verify network bandwidth and camera settings
 -   **Docker issues**: Ensure Docker service is running
 
+## 🔒 Production Deployment & Security
+
+### Security Configuration
+
+**⚠️ CRITICAL**: Before deploying to production, you **MUST** configure these security settings:
+
+#### 1. CORS Configuration
+By default, the application allows connections from any origin (`*`) for development convenience. In production:
+
+```bash
+# In your .env file
+ALLOWED_ORIGINS=https://yourdomain.com
+```
+
+For multiple domains:
+```bash
+ALLOWED_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+```
+
+#### 2. TURN Server Configuration
+The default configuration uses a public TURN server (`openrelay.metered.ca`) which is suitable for development only. For production, you should:
+
+**Option A: Set up your own TURN server** (Recommended)
+```bash
+# Install coturn on your server
+sudo apt-get install coturn
+
+# Configure in .env
+TURN_URL=turn:turn.yourdomain.com:3478
+TURN_USERNAME=your_secure_username
+TURN_PASSWORD=your_secure_password
+```
+
+**Option B: Use a managed TURN service**
+- Twilio Network Traversal Service
+- Cloudflare Calls TURN
+- AWS or Google Cloud TURN infrastructure
+
+```bash
+# Example: Twilio TURN configuration
+TURN_URL=turn:global.turn.twilio.com:3478?transport=udp
+TURN_USERNAME=your_twilio_username
+TURN_PASSWORD=your_twilio_password
+```
+
+#### 3. Security Checklist
+
+Before going to production, verify:
+
+- [ ] `ALLOWED_ORIGINS` is set to your actual domain(s), not `*`
+- [ ] Private TURN server configured (not using public openrelay)
+- [ ] Strong passwords set for `CAM_PASS`
+- [ ] `.env` file is not committed to version control (check `.gitignore`)
+- [ ] Firewall rules configured:
+  - Port 8000: FastAPI (restrict to trusted IPs or use reverse proxy)
+  - Port 1984: go2rtc API (internal only, not publicly exposed)
+  - Port 8555: WebRTC media (required for WebRTC connections)
+  - Port 8554: RTSP (internal only, camera connections)
+- [ ] HTTPS enabled (use nginx/caddy reverse proxy with SSL certificates)
+- [ ] Consider implementing authentication for the `/` and `/api/*` endpoints
+
+### Firewall Configuration Example
+
+```bash
+# Allow only HTTPS traffic from internet
+sudo ufw allow 443/tcp
+
+# Allow WebRTC media (required)
+sudo ufw allow 8555/tcp
+
+# Block direct access to FastAPI and go2rtc API
+sudo ufw deny 8000/tcp
+sudo ufw deny 1984/tcp
+
+# Use nginx as reverse proxy on port 443
+```
+
+### Reverse Proxy Example (nginx)
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name yourdomain.com;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Optional: Basic authentication
+    auth_basic "Camera Viewer";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+}
+```
+
+---
+
 ## 📚 Documentation
 
 -   [DEPLOYMENT.md](DEPLOYMENT.md) - Complete deployment guide for ChromeOS/Debian
+-   [SECURITY.md](SECURITY.md) - Security best practices and hardening guide
 -   [.env.example](.env.example) - Environment configuration template
 
 ## 🔮 Future Improvements
