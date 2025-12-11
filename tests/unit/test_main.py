@@ -92,7 +92,7 @@ def test_startup_validates_ffmpeg_processes(mocker, mock_settings):
 
     mock_sleep.assert_called_once_with(5)
     mock_process.poll.assert_called_once()
-    mock_logging.info.assert_any_call('Stream for Camera 1 started successfully.')
+    mock_logging.info.assert_any_call('Stream for Camera %d started successfully.', 1)
 
 
 def test_startup_logs_failed_streams(mocker, mock_settings):
@@ -114,4 +114,4 @@ def test_startup_logs_failed_streams(mocker, mock_settings):
 
     main.startup_event()
 
-    mock_logging.error.assert_any_call('FATAL: FFmpeg process for Camera 1 failed on startup.')
+    mock_logging.error.assert_any_call('FATAL: FFmpeg process for Camera %d failed on startup.', 1)

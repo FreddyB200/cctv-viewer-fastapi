@@ -36,6 +36,8 @@ addopts = [
     "--cov=.",
     "--cov-report=html",
     "--cov-report=term-missing",
-    "--cov-exclude=tests/*",
     "-p", "no:warnings"
 ]
+
+[tool.coverage.run]
+omit = ["tests/*", "*/tests/*", "*/__pycache__/*"]

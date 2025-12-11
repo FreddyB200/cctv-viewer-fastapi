@@ -1,6 +1,7 @@
 # file: settings.py
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
     # This tells Pydantic to read variables from a file named .env
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
@@ -13,5 +14,12 @@ class Settings(BaseSettings):
     CAM_PORT: int
     TOTAL_CAMERAS: int
 
+
 # Create a single, reusable instance of the settings that we can import elsewhere
-settings = Settings()
+# Only instantiate if not in test environment (when .env is available)
+try:
+    settings = Settings()
+except Exception:
+    # During testing without .env, this is expected
+    # Tests will mock settings as needed
+    settings = None

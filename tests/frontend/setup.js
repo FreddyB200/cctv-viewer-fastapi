@@ -25,7 +25,17 @@ class MockRTCPeerConnection {
 
   async setLocalDescription(desc) {
     this.localDescription = desc;
-    this.iceGatheringState = 'complete';
+    this.iceGatheringState = 'gathering';
+
+    // Simulate realistic async ICE gathering with configurable delay
+    const gatheringDelay = this.config._testGatheringDelay || 100;
+    setTimeout(() => {
+      this.iceGatheringState = 'complete';
+      if (this._iceGatheringHandler) {
+        this._iceGatheringHandler();
+      }
+    }, gatheringDelay);
+
     return Promise.resolve();
   }
 

@@ -1,7 +1,6 @@
 """Shared pytest fixtures for all tests."""
 import pytest
 from unittest.mock import MagicMock
-from settings import Settings
 
 
 @pytest.fixture
@@ -12,6 +11,8 @@ def mock_settings(monkeypatch):
     monkeypatch.setenv('CAM_IP', '192.168.1.100')
     monkeypatch.setenv('CAM_PORT', '554')
     monkeypatch.setenv('TOTAL_CAMERAS', '4')
+    # Import Settings only after env vars are set
+    from settings import Settings
     return Settings()
 
 
